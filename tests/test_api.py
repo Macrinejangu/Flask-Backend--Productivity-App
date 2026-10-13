@@ -16,6 +16,7 @@ def application():
         "SECRET_KEY": "test-only-secret",
         "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
         "BCRYPT_LOG_ROUNDS": 4,
+        "CSRF_ENABLED": False,
     })
 
     with app.app_context():
