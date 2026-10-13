@@ -3,16 +3,16 @@ import sqlite3
 
 from flask import Flask, jsonify
 from flask_migrate import Migrate
+from marshmallow import ValidationError
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
-
-from models import db, bcrypt, User, Note
-
 from werkzeug.exceptions import HTTPException
-from auth import auth
 
-from marshmallow import ValidationError
+from auth import auth
+from models import db, bcrypt, User, Note
 from notes import notes
+from security import configure_security
+
 
 @event.listens_for(Engine, "connect")
 def enable_foreign_keys(connection, connection_record):
@@ -33,28 +33,30 @@ def create_app(test_config=None):
         SECRET_KEY=os.environ.get("SECRET_KEY"),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
+        CSRF_ENABLED=True,
     )
 
     if test_config:
         app.config.update(test_config)
+
+    configure_security(app)
 
     db.init_app(app)
     bcrypt.init_app(app)
     Migrate(app, db)
 
     app.register_blueprint(auth)
-
     app.register_blueprint(notes)
-
-    @app.errorhandler(ValidationError)
-    def schema_error(error):
-        db.session.rollback()
-        return jsonify({"errors": error.messages}), 400
 
     @app.errorhandler(ValueError)
     def invalid_input(error):
         db.session.rollback()
         return jsonify({"error": str(error)}), 400
+
+    @app.errorhandler(ValidationError)
+    def schema_error(error):
+        db.session.rollback()
+        return jsonify({"errors": error.messages}), 400
 
     @app.errorhandler(HTTPException)
     def http_error(error):
