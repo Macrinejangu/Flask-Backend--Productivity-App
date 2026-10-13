@@ -8,6 +8,11 @@ from sqlalchemy.engine import Engine
 
 from models import db, bcrypt, User, Note
 
+from werkzeug.exceptions import HTTPException
+from auth import auth
+
+from marshmallow import ValidationError
+from notes import notes
 
 @event.listens_for(Engine, "connect")
 def enable_foreign_keys(connection, connection_record):
@@ -36,6 +41,24 @@ def create_app(test_config=None):
     db.init_app(app)
     bcrypt.init_app(app)
     Migrate(app, db)
+
+    app.register_blueprint(auth)
+
+    app.register_blueprint(notes)
+
+    @app.errorhandler(ValidationError)
+    def schema_error(error):
+        db.session.rollback()
+        return jsonify({"errors": error.messages}), 400
+
+    @app.errorhandler(ValueError)
+    def invalid_input(error):
+        db.session.rollback()
+        return jsonify({"error": str(error)}), 400
+
+    @app.errorhandler(HTTPException)
+    def http_error(error):
+        return jsonify({"error": error.description}), error.code
 
     @app.get("/")
     def home():
